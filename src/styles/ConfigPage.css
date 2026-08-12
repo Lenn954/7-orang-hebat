@@ -1,0 +1,162 @@
+/* ConfigPage.css */
+.config {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: calc(var(--space-3xl) + 40px) var(--space-xl) var(--space-2xl);
+}
+
+.config-title {
+  font-size: 2rem;
+  margin-bottom: var(--space-sm);
+}
+
+.config-subtitle {
+  font-size: 0.95rem;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-2xl);
+}
+
+.config-grid-options {
+  display: flex;
+  gap: var(--space-xl);
+  margin-bottom: var(--space-2xl);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.config-card {
+  width: 200px;
+  padding: var(--space-xl) var(--space-lg);
+  background: var(--color-bg-card);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  position: relative;
+  overflow: hidden;
+}
+
+.config-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--color-border-light);
+  transition: background var(--transition-normal);
+}
+
+.config-card:hover {
+  border-color: var(--color-accent-gold-light);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-warm);
+}
+
+.config-card.selected {
+  border-color: var(--color-accent-gold);
+  box-shadow: var(--shadow-warm);
+}
+
+.config-card.selected::before {
+  background: var(--color-accent-gold);
+}
+
+.config-grid-preview {
+  display: grid;
+  gap: 3px;
+  width: 90px;
+  height: 90px;
+}
+
+.config-grid-preview.grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.config-grid-preview.grid-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.config-grid-cell {
+  background: var(--color-bg-warm);
+  border-radius: 2px;
+  transition: background var(--transition-fast);
+}
+
+.config-card:hover .config-grid-cell,
+.config-card.selected .config-grid-cell {
+  background: var(--color-accent-gold-light);
+}
+
+.config-card-label {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.config-card-desc {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.config-card-check {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-accent-gold);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  opacity: 0;
+  transform: scale(0);
+  transition: all var(--transition-spring);
+}
+
+.config-card.selected .config-card-check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.config-next-btn {
+  background: var(--color-primary);
+  color: #FFFFFF;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: var(--space-md) var(--space-2xl);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-normal);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.config-next-btn:hover {
+  background: var(--color-primary-light);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+@media (max-width: 768px) {
+  .config-card {
+    width: 160px;
+    padding: var(--space-lg) var(--space-md);
+  }
+
+  .config-grid-preview {
+    width: 70px;
+    height: 70px;
+  }
+}
