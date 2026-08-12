@@ -1,15 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
 import { renderEditedPhoto, downloadBlob } from '../utils/canvasUtils';
+import { FRAMES } from '../assets/frames/index';
+import { STICKERS as STICKER_REGISTRY } from '../assets/stickers/index';
 import '../styles/EditorPage.css';
-
-const FRAMES = [
-  { type: null, label: 'None', icon: '⬜' },
-  { type: 'polaroid', label: 'Polaroid', icon: '🖼️' },
-  { type: 'vintage', label: 'Vintage', icon: '📜' },
-  { type: 'floral', label: 'Floral', icon: '🌸' },
-  { type: 'minimal', label: 'Minimal', icon: '▪️' },
-  { type: 'scrapbook', label: 'Scrapbook', icon: '📌' },
-];
 
 const FILTERS = [
   { name: 'none', label: 'Original' },
@@ -19,8 +12,6 @@ const FILTERS = [
   { name: 'cool', label: 'Cool' },
   { name: 'dreamy', label: 'Dreamy' },
 ];
-
-const STICKER_PALETTE = ['❤️', '⭐', '🌸', '🎀', '✨', '🦋', '💬', '📌', '🌈', '💖', '🍀', '🎵'];
 
 const FONT_OPTIONS = ['Inter', 'Playfair Display', 'Georgia', 'Courier New'];
 
@@ -51,11 +42,19 @@ export default function EditorPage({ imageSrc, onRestart }) {
     return `filter-${selectedFilter}`;
   };
 
-  // Add sticker
-  const addSticker = (emoji) => {
+  // Add sticker (supports both emoji and image types)
+  const addSticker = (stickerData) => {
     setStickers((prev) => [
       ...prev,
-      { id: Date.now(), emoji, x: 50 + Math.random() * 40, y: 50 + Math.random() * 40, size: 40 },
+      {
+        id: Date.now(),
+        emoji: stickerData.type === 'emoji' ? stickerData.src : null,
+        imageSrc: stickerData.type === 'image' ? stickerData.src : null,
+        stickerType: stickerData.type,
+        x: 50 + Math.random() * 40,
+        y: 50 + Math.random() * 40,
+        size: 40,
+      },
     ]);
   };
 
@@ -182,12 +181,16 @@ export default function EditorPage({ imageSrc, onRestart }) {
             className={`editor-canvas-img ${getFilterClass()}`}
           />
 
-          {/* Frame overlay */}
-          {selectedFrame && (
-            <div className={`editor-frame-overlay ${getFrameClass()}`} />
-          )}
+          {/* Frame overlay (CSS or image) */}
+          {selectedFrame && (() => {
+            const frameData = FRAMES.find(f => f.type === selectedFrame);
+            if (frameData && frameData.renderType === 'image' && frameData.src) {
+              return <img src={frameData.src} alt={frameData.label} className="editor-frame-overlay-img" />;
+            }
+            return <div className={`editor-frame-overlay ${getFrameClass()}`} />;
+          })()}
 
-          {/* Stickers */}
+          {/* Stickers (emoji or image) */}
           {stickers.map((sticker) => (
             <div
               key={sticker.id}
@@ -195,12 +198,20 @@ export default function EditorPage({ imageSrc, onRestart }) {
               style={{
                 left: `${sticker.x}px`,
                 top: `${sticker.y}px`,
-                fontSize: `${sticker.size}px`,
+                fontSize: sticker.stickerType === 'emoji' ? `${sticker.size}px` : undefined,
               }}
               onMouseDown={(e) => handlePointerDown(e, 'sticker', sticker.id)}
               onTouchStart={(e) => handlePointerDown(e, 'sticker', sticker.id)}
             >
-              {sticker.emoji}
+              {sticker.stickerType === 'emoji' ? (
+                sticker.emoji
+              ) : (
+                <img
+                  src={sticker.imageSrc}
+                  alt="sticker"
+                  style={{ width: `${sticker.size}px`, height: `${sticker.size}px`, pointerEvents: 'none' }}
+                />
+              )}
               <button
                 className="editor-sticker-delete"
                 onClick={(e) => { e.stopPropagation(); removeSticker(sticker.id); }}
@@ -271,13 +282,18 @@ export default function EditorPage({ imageSrc, onRestart }) {
 
             {activeTab === 'stickers' && (
               <div className="editor-sticker-palette">
-                {STICKER_PALETTE.map((emoji, i) => (
+                {STICKER_REGISTRY.map((sticker) => (
                   <button
-                    key={i}
+                    key={sticker.id}
                     className="editor-sticker-btn"
-                    onClick={() => addSticker(emoji)}
+                    onClick={() => addSticker(sticker)}
+                    title={sticker.label}
                   >
-                    {emoji}
+                    {sticker.type === 'emoji' ? (
+                      sticker.src
+                    ) : (
+                      <img src={sticker.src} alt={sticker.label} style={{ width: '28px', height: '28px' }} />
+                    )}
                   </button>
                 ))}
               </div>
