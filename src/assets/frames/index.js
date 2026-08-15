@@ -25,7 +25,11 @@
 // -- Import custom frame images here --
 // import goldenFrame from './golden-ornate.png';
 // import floralBorder from './floral-border.svg';
-
+import spidermanframe from './spiderman.png';
+import floralframe from './floral.png';
+import retrocameraframe from './retro-camera.png';
+import retroloveframe from './retro-love.png';
+import retrominimalframe from './retro-minimalis.png'
 /**
  * Default CSS-rendered frames (built-in, no image files needed)
  */
@@ -45,6 +49,11 @@ const DEFAULT_CSS_FRAMES = [
 const CUSTOM_IMAGE_FRAMES = [
   // { type: 'golden-ornate', label: 'Golden Ornate', icon: '👑', renderType: 'image', src: goldenFrame },
   // { type: 'floral-border', label: 'Floral Border', icon: '🌺', renderType: 'image', src: floralBorder },
+  { type: 'spidermanframe', label: 'Spiderman', icon: '🕷️', renderType: 'image', src: spidermanframe },
+  { type: 'floralframe', label: 'Floral', icon: '🌸', renderType: 'image', src: floralframe },
+  { type: 'retrocameraframe', label: 'Retro Camera', icon: '📷', renderType: 'image', src: retrocameraframe },
+  { type: 'retroloveframe', label: 'Retro Love', icon: '❤️', renderType: 'image', src: retroloveframe },
+  { type: 'retrominimalframe', label: 'Retro Minimal', icon: '▪️', renderType: 'image', src: retrominimalframe },
 ];
 
 /**
