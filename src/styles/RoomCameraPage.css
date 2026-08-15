@@ -1,0 +1,410 @@
+/* RoomCameraPage.css */
+.room-camera {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: calc(60px + var(--space-lg)) var(--space-xl) var(--space-xl);
+}
+
+.room-camera-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-md);
+}
+
+.room-camera-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-card);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+}
+
+.room-camera-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-success);
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+.room-camera-round {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-accent-gold);
+  background: var(--color-bg-card);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+}
+
+.room-camera-main {
+  flex: 1;
+  display: flex;
+  gap: var(--space-xl);
+}
+
+/* Video Grid */
+.room-camera-grid {
+  flex: 1;
+  display: grid;
+  gap: 6px;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: var(--color-primary);
+  box-shadow: var(--shadow-xl);
+  position: relative;
+  min-height: 400px;
+}
+
+.room-camera-grid.grid-2 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+}
+
+.room-camera-grid.grid-3 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.room-camera-grid.grid-3 .room-camera-cell:first-child {
+  grid-column: 1 / -1;
+}
+
+.room-camera-grid.grid-4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+/* Video cell */
+.room-camera-cell {
+  position: relative;
+  overflow: hidden;
+  background: #1a1a2e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.room-camera-cell.empty {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.room-camera-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.room-camera-cell.local .room-camera-video {
+  transform: scaleX(-1);
+}
+
+.room-camera-label {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  z-index: 3;
+}
+
+.room-camera-empty-content {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.room-camera-empty-icon {
+  font-size: 2.5rem;
+  margin-bottom: var(--space-sm);
+  animation: float 3s ease-in-out infinite;
+}
+
+.room-camera-empty-content p {
+  font-size: 0.85rem;
+}
+
+/* Loading */
+.room-camera-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+  z-index: 4;
+}
+
+.room-camera-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Flash */
+.room-camera-flash {
+  position: absolute;
+  inset: 0;
+  background: white;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.room-camera-flash.active {
+  animation: flash 0.4s ease-out;
+}
+
+/* Countdown */
+.room-camera-countdown {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 8;
+}
+
+.room-camera-countdown-num {
+  font-family: var(--font-heading);
+  font-size: 8rem;
+  font-weight: 800;
+  color: white;
+  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+  animation: countdownPop 1s ease-out;
+}
+
+.room-camera-countdown-num.cheese {
+  font-size: 5rem;
+  animation: cheesePop 0.5s ease-out;
+}
+
+@keyframes cheesePop {
+  0% { transform: scale(0.5); opacity: 0; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Sidebar */
+.room-camera-sidebar {
+  width: 240px;
+  background: var(--color-bg-card);
+  border-radius: var(--radius-xl);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  flex-shrink: 0;
+}
+
+.room-camera-sidebar-title {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+/* Controls */
+.room-camera-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.room-camera-capture-btn {
+  width: 100%;
+  padding: var(--space-md);
+  background: var(--color-accent-gold);
+  color: white;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.room-camera-capture-btn:hover:not(:disabled) {
+  background: var(--color-accent-gold-light);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-warm);
+}
+
+.room-camera-capture-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.room-camera-capture-btn.guest {
+  background: var(--color-accent-pink);
+}
+
+.room-camera-hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.room-camera-full {
+  text-align: center;
+  font-weight: 600;
+  color: var(--color-accent-gold);
+  font-size: 0.9rem;
+}
+
+/* Results */
+.room-camera-results {
+  border-top: 1px solid var(--color-border-light);
+  padding-top: var(--space-md);
+}
+
+.room-camera-results-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-sm);
+}
+
+.room-camera-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.room-camera-result-item {
+  position: relative;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  border: 2px solid var(--color-border-light);
+}
+
+.room-camera-result-item img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.room-camera-result-badge {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-accent-gold);
+  color: white;
+  font-size: 0.6rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.room-camera-result-retake {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  font-size: 0.75rem;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.room-camera-result-item:hover .room-camera-result-retake {
+  display: flex;
+}
+
+.room-camera-result-retake:hover {
+  background: var(--color-error);
+}
+
+/* Done */
+.room-camera-done-btn {
+  width: 100%;
+  padding: var(--space-md);
+  background: var(--color-accent-gold);
+  color: white;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  margin-top: auto;
+}
+
+.room-camera-done-btn:hover {
+  background: var(--color-accent-gold-light);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-warm);
+}
+
+/* Privacy notice */
+.room-camera-privacy {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  line-height: 1.5;
+  margin-top: var(--space-sm);
+  padding: var(--space-sm);
+  background: rgba(124, 182, 142, 0.05);
+  border-radius: var(--radius-sm);
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .room-camera {
+    padding: calc(50px + var(--space-md)) var(--space-md) var(--space-md);
+  }
+
+  .room-camera-main {
+    flex-direction: column;
+  }
+
+  .room-camera-grid {
+    min-height: 280px;
+    border-radius: var(--radius-lg);
+  }
+
+  .room-camera-sidebar {
+    width: 100%;
+    border-radius: var(--radius-lg);
+  }
+
+  .room-camera-countdown-num {
+    font-size: 5rem;
+  }
+
+  .room-camera-results-list {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .room-camera-result-item {
+    min-width: 120px;
+    flex-shrink: 0;
+  }
+}

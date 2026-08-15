@@ -1,12 +1,14 @@
 /**
  * peerService.js
  * WebRTC peer-to-peer room system using PeerJS.
- * Allows multiple users to connect via a shared Room ID and exchange photos in real-time.
+ * Supports both data channels (text/photos) and media streams (live video).
+ * Privacy: No data is stored server-side. PeerJS Cloud only handles signaling metadata.
  */
 
 import Peer from 'peerjs';
 
 const ROOM_PREFIX = 'scrapbook-puzzle-';
+const MAX_PEERS = 4;
 
 /**
  * Generate a random 6-character room code
@@ -21,12 +23,15 @@ function generateRoomId() {
 }
 
 /**
- * PeerRoom — manages a WebRTC room session
+ * PeerRoom — manages a WebRTC room session with video + data
  */
 export class PeerRoom {
   constructor() {
     this.peer = null;
     this.connections = new Map(); // peerId -> DataConnection
+    this.mediaCalls = new Map(); // peerId -> MediaConnection
+    this.remoteStreams = new Map(); // peerId -> MediaStream
+    this.localStream = null;
     this.isHost = false;
     this.roomId = null;
     this.myName = '';
@@ -37,9 +42,13 @@ export class PeerRoom {
       photoReceived: [],
       statusChange: [],
       error: [],
-      allPhotos: [],
+      streamReceived: [],
+      streamRemoved: [],
+      countdownTick: [],
+      captureSignal: [],
+      capturedPhoto: [],
     };
-    this._status = 'disconnected'; // disconnected | connecting | connected | error
+    this._status = 'disconnected';
   }
 
   get status() { return this._status; }
@@ -65,15 +74,16 @@ export class PeerRoom {
 
       this.peer.on('open', () => {
         this.status = 'connected';
-        // Listen for incoming connections
+        // Listen for incoming data connections
         this.peer.on('connection', (conn) => this._handleIncomingConnection(conn));
+        // Listen for incoming media calls
+        this.peer.on('call', (call) => this._handleIncomingCall(call));
         resolve(this.roomId);
       });
 
       this.peer.on('error', (err) => {
         console.error('PeerJS error:', err);
         if (err.type === 'unavailable-id') {
-          // Room ID already taken, generate new one
           this.roomId = generateRoomId();
           this.peer.destroy();
           this.createRoom(name).then(resolve).catch(reject);
@@ -115,7 +125,6 @@ export class PeerRoom {
         conn.on('open', () => {
           this.status = 'connected';
           this._setupConnection(conn, 'Host');
-          // Send our name
           conn.send({ type: 'introduce', name: this.myName });
           resolve();
         });
@@ -126,8 +135,10 @@ export class PeerRoom {
           reject(err);
         });
 
-        // Listen for incoming connections (for peer-to-peer mesh)
+        // Listen for incoming connections (mesh)
         this.peer.on('connection', (inConn) => this._handleIncomingConnection(inConn));
+        // Listen for incoming media calls
+        this.peer.on('call', (call) => this._handleIncomingCall(call));
 
         // Timeout
         setTimeout(() => {
@@ -149,15 +160,104 @@ export class PeerRoom {
   }
 
   /**
-   * Handle an incoming peer connection
+   * Start video streaming to all connected peers
+   * @param {MediaStream} localStream - The local camera stream
+   */
+  startVideoCall(localStream) {
+    this.localStream = localStream;
+
+    // Call all existing peers
+    this.connections.forEach((conn, peerId) => {
+      this._callPeer(peerId, localStream);
+    });
+  }
+
+  /**
+   * Call a specific peer with our local video stream
+   */
+  _callPeer(peerId, stream) {
+    if (!this.peer || this.mediaCalls.has(peerId)) return;
+
+    const call = this.peer.call(peerId, stream, {
+      metadata: { name: this.myName },
+    });
+
+    if (!call) return;
+
+    this.mediaCalls.set(peerId, call);
+
+    call.on('stream', (remoteStream) => {
+      this.remoteStreams.set(peerId, remoteStream);
+      const peerData = this.peers.get(peerId);
+      this._emit('streamReceived', {
+        peerId,
+        stream: remoteStream,
+        name: peerData?.name || 'Unknown',
+      });
+    });
+
+    call.on('close', () => {
+      this.mediaCalls.delete(peerId);
+      this.remoteStreams.delete(peerId);
+      const peerData = this.peers.get(peerId);
+      this._emit('streamRemoved', { peerId, name: peerData?.name || 'Unknown' });
+    });
+
+    call.on('error', (err) => {
+      console.error(`Media call error with ${peerId}:`, err);
+    });
+  }
+
+  /**
+   * Handle an incoming media call
+   */
+  _handleIncomingCall(call) {
+    const peerId = call.peer;
+    const callerName = call.metadata?.name || 'Unknown';
+
+    // Answer with our local stream if available
+    if (this.localStream) {
+      call.answer(this.localStream);
+    } else {
+      call.answer(); // Answer without stream (will receive theirs)
+    }
+
+    this.mediaCalls.set(peerId, call);
+
+    call.on('stream', (remoteStream) => {
+      this.remoteStreams.set(peerId, remoteStream);
+      const peerData = this.peers.get(peerId);
+      this._emit('streamReceived', {
+        peerId,
+        stream: remoteStream,
+        name: peerData?.name || callerName,
+      });
+    });
+
+    call.on('close', () => {
+      this.mediaCalls.delete(peerId);
+      this.remoteStreams.delete(peerId);
+      this._emit('streamRemoved', { peerId, name: callerName });
+    });
+
+    call.on('error', (err) => {
+      console.error(`Incoming call error from ${callerName}:`, err);
+    });
+  }
+
+  /**
+   * Handle an incoming peer data connection
    */
   _handleIncomingConnection(conn) {
     const peerName = conn.metadata?.name || 'Unknown';
     conn.on('open', () => {
       this._setupConnection(conn, peerName);
-      // If host, broadcast updated peer list
       if (this.isHost) {
         this._broadcastPeerList();
+      }
+      // If we already have a video stream, call this new peer
+      if (this.localStream) {
+        setTimeout(() => this._callPeer(conn.peer, this.localStream), 500);
       }
     });
   }
@@ -178,7 +278,10 @@ export class PeerRoom {
     conn.on('close', () => {
       this.connections.delete(peerId);
       this.peers.delete(peerId);
+      this.remoteStreams.delete(peerId);
+      this.mediaCalls.delete(peerId);
       this._emit('peerLeft', { peerId, name });
+      this._emit('streamRemoved', { peerId, name });
       if (this.isHost) {
         this._broadcastPeerList();
       }
@@ -190,7 +293,7 @@ export class PeerRoom {
   }
 
   /**
-   * Handle incoming messages
+   * Handle incoming data messages
    */
   _handleMessage(fromPeerId, data) {
     switch (data.type) {
@@ -213,18 +316,56 @@ export class PeerRoom {
             photoIndex: data.photoIndex,
           });
         }
-        // If host, relay to other peers
+        if (this.isHost) {
+          // Relay to other peers
+          this.connections.forEach((conn, connPeerId) => {
+            if (connPeerId !== fromPeerId) {
+              try { conn.send(data); } catch {}
+            }
+          });
+        }
+        break;
+      }
+      case 'countdown': {
+        this._emit('countdownTick', { count: data.count, fromPeerId });
+        // Relay if host
         if (this.isHost) {
           this.connections.forEach((conn, connPeerId) => {
             if (connPeerId !== fromPeerId) {
-              conn.send(data);
+              try { conn.send(data); } catch {}
+            }
+          });
+        }
+        break;
+      }
+      case 'captureNow': {
+        this._emit('captureSignal', { fromPeerId });
+        if (this.isHost) {
+          this.connections.forEach((conn, connPeerId) => {
+            if (connPeerId !== fromPeerId) {
+              try { conn.send(data); } catch {}
+            }
+          });
+        }
+        break;
+      }
+      case 'capturedPhoto': {
+        this._emit('capturedPhoto', {
+          peerId: fromPeerId,
+          name: this.peers.get(fromPeerId)?.name || 'Unknown',
+          imageData: data.imageData,
+          roundIndex: data.roundIndex,
+        });
+        if (this.isHost) {
+          this.connections.forEach((conn, connPeerId) => {
+            if (connPeerId !== fromPeerId) {
+              try { conn.send(data); } catch {}
             }
           });
         }
         break;
       }
       case 'peerList': {
-        // Update peer list from host
         if (!this.isHost && data.peers) {
           data.peers.forEach((p) => {
             if (!this.peers.has(p.peerId) && p.peerId !== this.peer?.id) {
@@ -241,23 +382,45 @@ export class PeerRoom {
   }
 
   /**
-   * Broadcast photo to all connected peers
-   * @param {string} imageData - Base64 image data URL
-   * @param {number} photoIndex - Index of the photo (0-3)
+   * Host broadcasts countdown to all peers
+   * @param {number} count - Current countdown number
+   */
+  broadcastCountdown(count) {
+    const msg = { type: 'countdown', count };
+    this.connections.forEach((conn) => {
+      try { conn.send(msg); } catch {}
+    });
+  }
+
+  /**
+   * Host broadcasts capture signal
+   */
+  broadcastCaptureSignal() {
+    const msg = { type: 'captureNow' };
+    this.connections.forEach((conn) => {
+      try { conn.send(msg); } catch {}
+    });
+  }
+
+  /**
+   * Send captured photo to all peers
+   * @param {string} imageData - Base64 data URL
+   * @param {number} roundIndex - Which capture round (0-3)
+   */
+  sendCapturedPhoto(imageData, roundIndex = 0) {
+    const msg = { type: 'capturedPhoto', imageData, roundIndex };
+    this.connections.forEach((conn) => {
+      try { conn.send(msg); } catch {}
+    });
+  }
+
+  /**
+   * Broadcast photo to all connected peers (legacy)
    */
   broadcastPhoto(imageData, photoIndex = 0) {
-    const message = {
-      type: 'photo',
-      imageData,
-      photoIndex,
-      senderName: this.myName,
-    };
+    const message = { type: 'photo', imageData, photoIndex, senderName: this.myName };
     this.connections.forEach((conn) => {
-      try {
-        conn.send(message);
-      } catch (err) {
-        console.error('Failed to send photo:', err);
-      }
+      try { conn.send(message); } catch {}
     });
   }
 
@@ -269,16 +432,10 @@ export class PeerRoom {
     this.peers.forEach((data, peerId) => {
       peerList.push({ peerId, name: data.name });
     });
-    // Include self
     peerList.push({ peerId: this.peer?.id, name: this.myName + ' (Host)' });
-
     const message = { type: 'peerList', peers: peerList };
     this.connections.forEach((conn) => {
-      try {
-        conn.send(message);
-      } catch (err) {
-        console.error('Failed to send peer list:', err);
-      }
+      try { conn.send(message); } catch {}
     });
   }
 
@@ -294,16 +451,31 @@ export class PeerRoom {
   }
 
   /**
-   * Get photos from a specific peer
+   * Get remote streams map
    */
-  getPeerPhotos(peerId) {
-    const peer = this.peers.get(peerId);
-    return peer ? peer.photos : [];
+  getRemoteStreams() {
+    return this.remoteStreams;
   }
 
   /**
-   * Event listener registration
+   * Stop video streaming (cleanup tracks)
    */
+  stopVideo() {
+    // Close all media calls
+    this.mediaCalls.forEach((call) => {
+      try { call.close(); } catch {}
+    });
+    this.mediaCalls.clear();
+    this.remoteStreams.clear();
+
+    // Stop local stream tracks
+    if (this.localStream) {
+      this.localStream.getTracks().forEach((t) => t.stop());
+      this.localStream = null;
+    }
+  }
+
+  // --- Event system ---
   on(event, callback) {
     if (this._listeners[event]) {
       this._listeners[event].push(callback);
@@ -324,16 +496,22 @@ export class PeerRoom {
   }
 
   /**
-   * Cleanup and destroy all connections
+   * Full cleanup — destroy all connections, streams, and peer instance.
+   * Ensures zero data remains in memory.
    */
   destroy() {
-    this.connections.forEach((conn) => conn.close());
+    this.stopVideo();
+    this.connections.forEach((conn) => { try { conn.close(); } catch {} });
     this.connections.clear();
     this.peers.clear();
     if (this.peer) {
       this.peer.destroy();
       this.peer = null;
     }
+    // Clear all listener references
+    Object.keys(this._listeners).forEach((key) => {
+      this._listeners[key] = [];
+    });
     this.status = 'disconnected';
   }
 }
