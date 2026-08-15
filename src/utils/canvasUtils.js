@@ -5,6 +5,89 @@
  */
 
 /**
+ * Combine photos from multiple people into a single composite image.
+ * 2 people = side by side, 3-4 = 2x2 grid, 5+ = flexible grid.
+ * Returns a data URL of the composite.
+ * @param {string[]} photoSrcs - Array of data URL strings (one per person)
+ * @returns {Promise<string>} Data URL of composite image
+ */
+export async function combinePhotosToComposite(photoSrcs) {
+  if (photoSrcs.length === 0) throw new Error('No photos to combine');
+  if (photoSrcs.length === 1) return photoSrcs[0];
+
+  const images = await loadAllImages(photoSrcs);
+  const count = images.length;
+
+  // Layout: determine columns and rows
+  let cols, rows;
+  if (count === 2) { cols = 2; rows = 1; }
+  else if (count <= 4) { cols = 2; rows = 2; }
+  else if (count <= 6) { cols = 3; rows = 2; }
+  else { cols = 3; rows = Math.ceil(count / 3); }
+
+  const cellWidth = 600;
+  const cellHeight = 450;
+  const gap = 6;
+  const padding = 12;
+  const canvasW = padding * 2 + cols * cellWidth + (cols - 1) * gap;
+  const canvasH = padding * 2 + rows * cellHeight + (rows - 1) * gap;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = canvasW;
+  canvas.height = canvasH;
+  const ctx = canvas.getContext('2d');
+
+  // White background
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  images.forEach((img, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const x = padding + col * (cellWidth + gap);
+    const y = padding + row * (cellHeight + gap);
+
+    // Crop to fill cell (center-crop)
+    const imgAspect = img.width / img.height;
+    const cellAspect = cellWidth / cellHeight;
+    let sx = 0, sy = 0, sw = img.width, sh = img.height;
+    if (imgAspect > cellAspect) {
+      sw = img.height * cellAspect;
+      sx = (img.width - sw) / 2;
+    } else {
+      sh = img.width / cellAspect;
+      sy = (img.height - sh) / 2;
+    }
+
+    // Rounded corners via clipping
+    ctx.save();
+    roundedRect(ctx, x, y, cellWidth, cellHeight, 12);
+    ctx.clip();
+    ctx.drawImage(img, sx, sy, sw, sh, x, y, cellWidth, cellHeight);
+    ctx.restore();
+  });
+
+  return canvas.toDataURL('image/jpeg', 0.92);
+}
+
+/**
+ * Helper: draw a rounded rectangle path
+ */
+function roundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+/**
  * Render the final edited photo to a canvas and return as a blob.
  */
 export async function renderEditedPhoto({

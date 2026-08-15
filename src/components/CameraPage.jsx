@@ -1,7 +1,8 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
+import { combinePhotosToComposite } from '../utils/canvasUtils';
 import '../styles/CameraPage.css';
 
-export default function CameraPage({ mode, maxPhotos = 4, onPhotosCapture, peerPhotos = [] }) {
+export default function CameraPage({ mode, maxPhotos = 4, onPhotosCapture, peerRoom, peerPhotos = [] }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [cameraReady, setCameraReady] = useState(false);
@@ -9,7 +10,12 @@ export default function CameraPage({ mode, maxPhotos = 4, onPhotosCapture, peerP
   const [flash, setFlash] = useState(false);
   const [countdown, setCountdown] = useState(null);
   const [isCountingDown, setIsCountingDown] = useState(false);
+  const [combining, setCombining] = useState(false);
   const countdownRef = useRef(null);
+
+  // In room mode, we capture 1 photo per person and combine them
+  const isRoom = mode === 'room';
+  const effectiveMaxPhotos = isRoom ? 1 : maxPhotos;
 
   const startCamera = useCallback(async () => {
     try {
@@ -60,7 +66,6 @@ export default function CameraPage({ mode, maxPhotos = 4, onPhotosCapture, peerP
 
   const handleCapture = () => {
     if (isCountingDown) return;
-    // Start countdown
     setIsCountingDown(true);
     setCountdown(3);
     let count = 3;
@@ -75,6 +80,10 @@ export default function CameraPage({ mode, maxPhotos = 4, onPhotosCapture, peerP
         const photo = capturePhoto();
         if (photo) {
           setPhotos((prev) => [...prev, photo]);
+          // In room mode, broadcast immediately
+          if (isRoom && peerRoom) {
+            peerRoom.broadcastPhoto(photo, 0);
+          }
         }
       }
     }, 1000);
@@ -85,6 +94,9 @@ export default function CameraPage({ mode, maxPhotos = 4, onPhotosCapture, peerP
     const photo = capturePhoto();
     if (photo) {
       setPhotos((prev) => [...prev, photo]);
+      if (isRoom && peerRoom) {
+        peerRoom.broadcastPhoto(photo, 0);
+      }
     }
   };
 
@@ -92,12 +104,54 @@ export default function CameraPage({ mode, maxPhotos = 4, onPhotosCapture, peerP
     setPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleDone = () => {
+  // For Room mode: combine my photo + peer photos into composite images
+  const handleDoneRoom = async () => {
+    if (photos.length === 0) return;
+    setCombining(true);
+    try {
+      // Collect all photos: mine + peers
+      const allPeoplePhotos = [
+        photos[0], // my photo
+        ...peerPhotos.map((p) => p.imageData),
+      ];
+
+      // Create composite images in different arrangements
+      const composites = [];
+
+      // Main composite: everyone together in one photo
+      const mainComposite = await combinePhotosToComposite(allPeoplePhotos);
+      composites.push(mainComposite);
+
+      // If I have more of my own photos (shouldn't in room mode, but just in case)
+      if (photos.length > 1) {
+        photos.slice(1).forEach((p) => composites.push(p));
+      }
+
+      stopCamera();
+      onPhotosCapture(composites);
+    } catch (err) {
+      console.error('Failed to combine photos:', err);
+      // Fallback: just send raw photos
+      stopCamera();
+      onPhotosCapture(photos);
+    }
+    setCombining(false);
+  };
+
+  // For Solo mode: just pass photos through
+  const handleDoneSolo = () => {
     stopCamera();
     onPhotosCapture(photos);
   };
 
-  const isFull = photos.length >= maxPhotos;
+  const handleDone = isRoom ? handleDoneRoom : handleDoneSolo;
+
+  const myPhotoTaken = photos.length > 0;
+  const isFull = isRoom ? myPhotoTaken : photos.length >= maxPhotos;
+
+  // Count total people in room
+  const totalPeople = isRoom ? 1 + peerPhotos.length : 0;
+  const peersCaptured = peerPhotos.length;
 
   return (
     <section className="camera">
@@ -107,7 +161,10 @@ export default function CameraPage({ mode, maxPhotos = 4, onPhotosCapture, peerP
           {cameraReady ? 'Camera ready' : 'Starting camera...'}
         </div>
         <span className="camera-hint">
-          📸 Foto {photos.length} / {maxPhotos}
+          {isRoom
+            ? `👥 ${1 + peersCaptured} orang di room`
+            : `📸 Foto ${photos.length} / ${maxPhotos}`
+          }
         </span>
       </div>
 
@@ -116,7 +173,6 @@ export default function CameraPage({ mode, maxPhotos = 4, onPhotosCapture, peerP
           <video ref={videoRef} autoPlay playsInline className="camera-video" />
           <div className={`camera-flash ${flash ? 'active' : ''}`} />
 
-          {/* Countdown overlay */}
           {countdown !== null && (
             <div className="camera-countdown-overlay">
               <div className="camera-countdown-number">{countdown}</div>
@@ -150,68 +206,154 @@ export default function CameraPage({ mode, maxPhotos = 4, onPhotosCapture, peerP
             </div>
           )}
 
-          {isFull && (
+          {isFull && !isRoom && (
             <div className="camera-full-overlay">
               <p>All {maxPhotos} photos captured! ✨</p>
             </div>
           )}
+
+          {isFull && isRoom && (
+            <div className="camera-full-overlay">
+              <p>Foto kamu sudah diambil! ✅</p>
+            </div>
+          )}
         </div>
 
-        {/* Photo strip preview */}
+        {/* Sidebar */}
         <div className="camera-strip">
-          <div className="camera-strip-header">
-            <h3>Your Photos</h3>
-            {photos.length > 0 && (
-              <span className="camera-strip-count">{photos.length}/{maxPhotos}</span>
-            )}
-          </div>
-          <div className="camera-strip-photos">
-            {Array.from({ length: maxPhotos }, (_, i) => (
-              <div key={i} className={`camera-strip-slot ${photos[i] ? 'filled' : ''}`}>
-                {photos[i] ? (
-                  <>
-                    <img src={photos[i]} alt={`Photo ${i + 1}`} />
-                    <button
-                      className="camera-strip-retake"
-                      onClick={() => handleRetake(i)}
-                      title="Retake"
-                    >
-                      ↺
-                    </button>
-                    <span className="camera-strip-number">{i + 1}</span>
-                  </>
-                ) : (
-                  <div className="camera-strip-empty">
-                    <span>{i + 1}</span>
+          {/* ROOM MODE: Show combined group photo preview */}
+          {isRoom && (
+            <>
+              <div className="camera-strip-header">
+                <h3>Foto Bareng 👥</h3>
+              </div>
+
+              <div className="camera-group-preview">
+                {/* My photo slot */}
+                <div className={`camera-group-slot ${myPhotoTaken ? 'filled' : ''}`}>
+                  {myPhotoTaken ? (
+                    <>
+                      <img src={photos[0]} alt="Foto kamu" />
+                      <span className="camera-group-label">Kamu</span>
+                      <button className="camera-strip-retake" onClick={() => handleRetake(0)} title="Retake">↺</button>
+                    </>
+                  ) : (
+                    <div className="camera-group-empty">
+                      <span>📷</span>
+                      <small>Kamu</small>
+                    </div>
+                  )}
+                </div>
+
+                {/* Peer photo slots */}
+                {peerPhotos.map((p, i) => (
+                  <div key={i} className="camera-group-slot filled peer">
+                    <img src={p.imageData} alt={`Foto ${p.name}`} />
+                    <span className="camera-group-label">{p.name}</span>
                   </div>
+                ))}
+
+                {/* Waiting slots for peers who haven't captured yet */}
+                {peerRoom && (() => {
+                  const allPeers = peerRoom.getAllPeers().filter((p) => !p.isSelf);
+                  const capturedPeerIds = new Set(peerPhotos.map((p) => p.peerId));
+                  const waiting = allPeers.filter((p) => !capturedPeerIds.has(p.peerId));
+                  return waiting.map((p) => (
+                    <div key={p.peerId} className="camera-group-slot waiting">
+                      <div className="camera-group-empty">
+                        <div className="camera-group-waiting-spinner" />
+                        <small>{p.name}</small>
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+
+              {/* Combined preview */}
+              {myPhotoTaken && peerPhotos.length > 0 && (
+                <div className="camera-combine-preview">
+                  <p className="camera-combine-label">📸 Hasil gabungan foto bareng</p>
+                  <div className="camera-combine-grid">
+                    <div className="camera-combine-thumb">
+                      <img src={photos[0]} alt="Kamu" />
+                    </div>
+                    {peerPhotos.map((p, i) => (
+                      <div key={i} className="camera-combine-thumb">
+                        <img src={p.imageData} alt={p.name} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {myPhotoTaken && (
+                <button
+                  className="camera-done-btn"
+                  onClick={handleDone}
+                  disabled={combining}
+                  id="btn-photos-done"
+                >
+                  {combining
+                    ? '⏳ Menggabungkan foto...'
+                    : peerPhotos.length > 0
+                      ? `Gabungkan & Edit! (${1 + peerPhotos.length} orang) 🎉`
+                      : 'Tunggu teman atau lanjut sendiri →'
+                  }
+                </button>
+              )}
+
+              {!myPhotoTaken && (
+                <p className="camera-room-hint">
+                  Ambil foto kamu dulu, lalu tunggu teman mengambil foto mereka. 
+                  Semua foto akan digabungkan jadi satu! 🎉
+                </p>
+              )}
+            </>
+          )}
+
+          {/* SOLO MODE: Photo strip */}
+          {!isRoom && (
+            <>
+              <div className="camera-strip-header">
+                <h3>Your Photos</h3>
+                {photos.length > 0 && (
+                  <span className="camera-strip-count">{photos.length}/{maxPhotos}</span>
                 )}
               </div>
-            ))}
-          </div>
-
-          {/* Peer photos in room mode */}
-          {mode === 'room' && peerPhotos.length > 0 && (
-            <div className="camera-peer-photos">
-              <h4 className="camera-peer-title">Foto Teman</h4>
               <div className="camera-strip-photos">
-                {peerPhotos.map((p, i) => (
-                  <div key={i} className="camera-strip-slot filled peer">
-                    <img src={p.imageData} alt={`${p.name} photo`} />
-                    <span className="camera-strip-peer-name">{p.name}</span>
+                {Array.from({ length: maxPhotos }, (_, i) => (
+                  <div key={i} className={`camera-strip-slot ${photos[i] ? 'filled' : ''}`}>
+                    {photos[i] ? (
+                      <>
+                        <img src={photos[i]} alt={`Photo ${i + 1}`} />
+                        <button
+                          className="camera-strip-retake"
+                          onClick={() => handleRetake(i)}
+                          title="Retake"
+                        >
+                          ↺
+                        </button>
+                        <span className="camera-strip-number">{i + 1}</span>
+                      </>
+                    ) : (
+                      <div className="camera-strip-empty">
+                        <span>{i + 1}</span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
-            </div>
-          )}
 
-          {photos.length > 0 && (
-            <button
-              className="camera-done-btn"
-              onClick={handleDone}
-              id="btn-photos-done"
-            >
-              {isFull ? 'Lanjut Edit! ✨' : `Lanjut dengan ${photos.length} foto →`}
-            </button>
+              {photos.length > 0 && (
+                <button
+                  className="camera-done-btn"
+                  onClick={handleDone}
+                  id="btn-photos-done"
+                >
+                  {isFull ? 'Lanjut Edit! ✨' : `Lanjut dengan ${photos.length} foto →`}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
