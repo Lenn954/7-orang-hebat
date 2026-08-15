@@ -1,4 +1,5 @@
 import '../styles/DonatePage.css';
+import qris from '../assets/Saweria.png';
 
 export default function DonatePage({ onDone }) {
   return (
@@ -29,10 +30,11 @@ export default function DonatePage({ onDone }) {
 
         <div className="donate-qr-container">
           <div className="donate-qr-frame">
-            <div className="donate-qr-placeholder">
-              <span className="donate-qr-text">QR CODE</span>
-              <span className="donate-qr-subtext">Ganti dengan QR asli</span>
-            </div>
+            <img
+              src={qris}
+              alt="QR Code Donasi"
+              className="donate-qr-image"
+            />
           </div>
           <p className="donate-qr-label">Scan untuk Donate</p>
         </div>
