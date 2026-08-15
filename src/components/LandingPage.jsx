@@ -39,17 +39,18 @@ export default function LandingPage({ onModeSelect }) {
         </div>
 
         <button
-          className="landing-mode-card landing-mode-card-room"
-          onClick={() => onModeSelect('room')}
+          className="landing-mode-card landing-mode-card-room disabled"
+          onClick={() => {}}
           id="btn-room"
+          disabled
         >
           <div className="landing-mode-icon">👥</div>
           <h3 className="landing-mode-title">Room Mode</h3>
           <p className="landing-mode-desc">
             Foto bareng teman dari jarak jauh via Room ID
           </p>
-          <span className="landing-mode-badge-new">NEW</span>
-          <span className="landing-mode-arrow">→</span>
+          <span className="landing-mode-badge-new">COMING SOON</span>
+          <span className="landing-mode-arrow-disabled">🔒</span>
         </button>
       </div>
 
@@ -67,8 +68,8 @@ export default function LandingPage({ onModeSelect }) {
           <span className="landing-feature-label">Edit</span>
         </div>
         <div className="landing-feature">
-          <div className="landing-feature-icon">👥</div>
-          <span className="landing-feature-label">Multiplayer</span>
+          <div className="landing-feature-icon">📥</div>
+          <span className="landing-feature-label">Download</span>
         </div>
       </div>
     </section>

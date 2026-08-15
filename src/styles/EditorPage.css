@@ -31,8 +31,8 @@
 }
 
 .editor-canvas-container.layout-strip {
-  aspect-ratio: 1/2;
-  max-width: 320px;
+  aspect-ratio: auto;
+  max-width: 350px;
 }
 
 .editor-canvas-container.layout-grid {

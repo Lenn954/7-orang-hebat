@@ -165,7 +165,7 @@ function renderPhotoStrip({ photos, filter, frame, stickers, texts, canvasWidth,
       const stripWidth = 600;
       const gap = 8;
       const padding = 16;
-      const photoHeight = Math.floor((stripWidth - padding * 2) * 0.75);
+      const photoHeight = Math.floor((stripWidth - padding * 2) * (4 / 3));
       const totalHeight = padding * 2 + images.length * photoHeight + (images.length - 1) * gap;
 
       const canvas = document.createElement('canvas');
