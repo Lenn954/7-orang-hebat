@@ -84,7 +84,7 @@ export default function RoomPage({ onRoomReady, onBack }) {
     return (
       <section className="room">
         <h2 className="room-title">Room Photobooth 🎉</h2>
-        <p className="room-subtitle">Foto bareng teman dari jarak jauh!</p>
+        <p className="room-subtitle">Foto bareng teman dari jarak jauh! (masih tahap pengembangan)</p>
 
         <div className="room-mode-cards">
           <button className="room-mode-card" onClick={() => setMode('create')}>
