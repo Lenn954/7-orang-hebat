@@ -13,10 +13,19 @@ const FILTERS = [
   { name: 'dreamy', label: 'Dreamy' },
 ];
 
+const LAYOUTS = [
+  { id: 'single', label: 'Single', icon: '🖼️', minPhotos: 1 },
+  { id: 'strip', label: 'Strip', icon: '📋', minPhotos: 2 },
+  { id: 'grid', label: 'Grid 2×2', icon: '⊞', minPhotos: 2 },
+];
+
 const FONT_OPTIONS = ['Inter', 'Playfair Display', 'Georgia', 'Courier New'];
 
-export default function EditorPage({ imageSrc, onRestart }) {
-  const [activeTab, setActiveTab] = useState('frames');
+export default function EditorPage({ imageSrc, photos = [], peerPhotos = [], mode, onRestart, onDonate }) {
+  const allPhotos = photos.length > 0 ? photos : (imageSrc ? [imageSrc] : []);
+  const [activeTab, setActiveTab] = useState('layout');
+  const [layout, setLayout] = useState(allPhotos.length >= 2 ? 'strip' : 'single');
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [selectedFrame, setSelectedFrame] = useState(null);
   const [selectedFilter, setSelectedFilter] = useState('none');
   const [stickers, setStickers] = useState([]);
@@ -32,17 +41,19 @@ export default function EditorPage({ imageSrc, onRestart }) {
   const canvasContainerRef = useRef(null);
   const dragRef = useRef({ type: null, id: null, offsetX: 0, offsetY: 0 });
 
-  const getFrameClass = () => {
-    if (!selectedFrame) return '';
-    return `frame-${selectedFrame}`;
-  };
+  const currentPhoto = allPhotos[activePhotoIndex] || allPhotos[0];
 
   const getFilterClass = () => {
     if (selectedFilter === 'none') return '';
     return `filter-${selectedFilter}`;
   };
 
-  // Add sticker (supports both emoji and image types)
+  const getFrameClass = () => {
+    if (!selectedFrame) return '';
+    return `frame-${selectedFrame}`;
+  };
+
+  // Add sticker
   const addSticker = (stickerData) => {
     setStickers((prev) => [
       ...prev,
@@ -144,7 +155,9 @@ export default function EditorPage({ imageSrc, onRestart }) {
     try {
       const container = canvasContainerRef.current;
       const blob = await renderEditedPhoto({
-        imageSrc,
+        imageSrc: currentPhoto,
+        allPhotos,
+        layout,
         filter: selectedFilter,
         frame: selectedFrame ? { type: selectedFrame } : null,
         stickers,
@@ -161,27 +174,79 @@ export default function EditorPage({ imageSrc, onRestart }) {
     setDownloading(false);
   };
 
+  const handleDownloadAndDonate = async () => {
+    await handleDownload();
+    if (onDonate) onDonate();
+  };
+
   const tabs = [
+    { id: 'layout', icon: '📐', label: 'Layout' },
     { id: 'frames', icon: '🖼️', label: 'Frames' },
     { id: 'stickers', icon: '🌟', label: 'Stickers' },
     { id: 'text', icon: '✏️', label: 'Text' },
     { id: 'filters', icon: '🎨', label: 'Filters' },
   ];
 
+  // Render photos based on layout
+  const renderPhotos = () => {
+    if (layout === 'single') {
+      return (
+        <img
+          src={currentPhoto}
+          alt="Your photo"
+          className={`editor-canvas-img ${getFilterClass()}`}
+        />
+      );
+    }
+
+    if (layout === 'strip') {
+      return (
+        <div className={`editor-strip-layout ${getFilterClass()}`}>
+          {allPhotos.map((photo, i) => (
+            <div
+              key={i}
+              className={`editor-strip-photo ${activePhotoIndex === i ? 'active' : ''}`}
+              onClick={() => setActivePhotoIndex(i)}
+            >
+              <img src={photo} alt={`Photo ${i + 1}`} />
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (layout === 'grid') {
+      return (
+        <div className={`editor-grid-layout ${getFilterClass()}`}>
+          {allPhotos.slice(0, 4).map((photo, i) => (
+            <div
+              key={i}
+              className={`editor-grid-photo ${activePhotoIndex === i ? 'active' : ''}`}
+              onClick={() => setActivePhotoIndex(i)}
+            >
+              <img src={photo} alt={`Photo ${i + 1}`} />
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <section className="editor">
-      <h2 className="editor-title">Edit Your Photo ✨</h2>
+      <h2 className="editor-title">Edit Your Photos ✨</h2>
 
       <div className="editor-workspace">
         {/* Canvas area */}
-        <div className="editor-canvas-container" ref={canvasContainerRef}>
-          <img
-            src={imageSrc}
-            alt="Your photo"
-            className={`editor-canvas-img ${getFilterClass()}`}
-          />
+        <div
+          className={`editor-canvas-container ${layout !== 'single' ? `layout-${layout}` : ''}`}
+          ref={canvasContainerRef}
+        >
+          {renderPhotos()}
 
-          {/* Frame overlay (CSS or image) */}
+          {/* Frame overlay */}
           {selectedFrame && (() => {
             const frameData = FRAMES.find(f => f.type === selectedFrame);
             if (frameData && frameData.renderType === 'image' && frameData.src) {
@@ -190,7 +255,7 @@ export default function EditorPage({ imageSrc, onRestart }) {
             return <div className={`editor-frame-overlay ${getFrameClass()}`} />;
           })()}
 
-          {/* Stickers (emoji or image) */}
+          {/* Stickers */}
           {stickers.map((sticker) => (
             <div
               key={sticker.id}
@@ -265,6 +330,60 @@ export default function EditorPage({ imageSrc, onRestart }) {
           </div>
 
           <div className="editor-panel">
+            {/* Layout tab */}
+            {activeTab === 'layout' && (
+              <div className="editor-layout-options">
+                {LAYOUTS.filter(l => l.minPhotos <= allPhotos.length).map((l) => (
+                  <button
+                    key={l.id}
+                    className={`editor-layout-option ${layout === l.id ? 'active' : ''}`}
+                    onClick={() => setLayout(l.id)}
+                  >
+                    <span className="editor-layout-option-icon">{l.icon}</span>
+                    {l.label}
+                  </button>
+                ))}
+
+                {allPhotos.length > 1 && layout === 'single' && (
+                  <div className="editor-photo-selector">
+                    <p className="editor-photo-selector-label">Select Photo</p>
+                    <div className="editor-photo-thumbs">
+                      {allPhotos.map((photo, i) => (
+                        <button
+                          key={i}
+                          className={`editor-photo-thumb ${activePhotoIndex === i ? 'active' : ''}`}
+                          onClick={() => setActivePhotoIndex(i)}
+                        >
+                          <img src={photo} alt={`Photo ${i + 1}`} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Peer photos for room mode */}
+                {mode === 'room' && peerPhotos.length > 0 && (
+                  <div className="editor-peer-section">
+                    <p className="editor-photo-selector-label">Foto Teman</p>
+                    <div className="editor-photo-thumbs">
+                      {peerPhotos.map((p, i) => (
+                        <button
+                          key={i}
+                          className="editor-photo-thumb peer"
+                          onClick={() => {
+                            // Add peer photo to allPhotos is handled via state
+                          }}
+                          title={p.name}
+                        >
+                          <img src={p.imageData} alt={`${p.name}'s photo`} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeTab === 'frames' && (
               <div className="editor-frame-options">
                 {FRAMES.map((f) => (
@@ -372,7 +491,7 @@ export default function EditorPage({ imageSrc, onRestart }) {
         </button>
         <button
           className="editor-action-btn editor-download-btn"
-          onClick={handleDownload}
+          onClick={handleDownloadAndDonate}
           disabled={downloading}
           id="btn-download"
         >

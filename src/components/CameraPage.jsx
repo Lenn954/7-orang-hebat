@@ -1,12 +1,15 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import '../styles/CameraPage.css';
 
-export default function CameraPage({ onCapture }) {
+export default function CameraPage({ mode, maxPhotos = 4, onPhotosCapture, peerPhotos = [] }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [cameraReady, setCameraReady] = useState(false);
-  const [preview, setPreview] = useState(null);
+  const [photos, setPhotos] = useState([]);
   const [flash, setFlash] = useState(false);
+  const [countdown, setCountdown] = useState(null);
+  const [isCountingDown, setIsCountingDown] = useState(false);
+  const countdownRef = useRef(null);
 
   const startCamera = useCallback(async () => {
     try {
@@ -33,58 +36,68 @@ export default function CameraPage({ onCapture }) {
 
   useEffect(() => {
     startCamera();
-    return () => stopCamera();
+    return () => {
+      stopCamera();
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
   }, [startCamera, stopCamera]);
 
-  const handleCapture = () => {
+  const capturePhoto = useCallback(() => {
     if (!videoRef.current) return;
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
-    // Mirror the image to match the mirrored video display
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
-    setPreview(dataUrl);
     setFlash(true);
     setTimeout(() => setFlash(false), 400);
+    return dataUrl;
+  }, []);
+
+  const handleCapture = () => {
+    if (isCountingDown) return;
+    // Start countdown
+    setIsCountingDown(true);
+    setCountdown(3);
+    let count = 3;
+    countdownRef.current = setInterval(() => {
+      count--;
+      if (count > 0) {
+        setCountdown(count);
+      } else {
+        clearInterval(countdownRef.current);
+        setCountdown(null);
+        setIsCountingDown(false);
+        const photo = capturePhoto();
+        if (photo) {
+          setPhotos((prev) => [...prev, photo]);
+        }
+      }
+    }, 1000);
+  };
+
+  const handleQuickCapture = () => {
+    if (isCountingDown) return;
+    const photo = capturePhoto();
+    if (photo) {
+      setPhotos((prev) => [...prev, photo]);
+    }
+  };
+
+  const handleRetake = (index) => {
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleDone = () => {
     stopCamera();
+    onPhotosCapture(photos);
   };
 
-  const handleRetake = () => {
-    setPreview(null);
-    startCamera();
-  };
-
-  const handleNext = () => {
-    if (preview) onCapture(preview);
-  };
-
-  if (preview) {
-    return (
-      <section className="camera">
-        <div className="camera-info">
-          <div className="camera-status">
-            <span>📸</span> Photo captured!
-          </div>
-        </div>
-        <div className="camera-preview">
-          <img src={preview} alt="Captured" className="camera-preview-img" />
-          <div className="camera-preview-actions">
-            <button className="camera-btn camera-btn-retake" onClick={handleRetake}>
-              ↺ Retake
-            </button>
-            <button className="camera-btn camera-btn-next" onClick={handleNext} id="btn-to-puzzle">
-              Continue to Puzzle →
-            </button>
-          </div>
-        </div>
-      </section>
-    );
-  }
+  const isFull = photos.length >= maxPhotos;
 
   return (
     <section className="camera">
@@ -93,25 +106,114 @@ export default function CameraPage({ onCapture }) {
           <span className="camera-status-dot" />
           {cameraReady ? 'Camera ready' : 'Starting camera...'}
         </div>
-        <span className="camera-hint">Click the button to capture</span>
+        <span className="camera-hint">
+          📸 Foto {photos.length} / {maxPhotos}
+        </span>
       </div>
 
-      <div className="camera-viewport">
-        <video ref={videoRef} autoPlay playsInline className="camera-video" />
-        <div className={`camera-flash ${flash ? 'active' : ''}`} />
+      <div className="camera-main-area">
+        <div className="camera-viewport">
+          <video ref={videoRef} autoPlay playsInline className="camera-video" />
+          <div className={`camera-flash ${flash ? 'active' : ''}`} />
 
-        {!cameraReady && (
-          <div className="camera-loading">
-            <div className="camera-loading-spinner" />
-            Accessing camera...
-          </div>
-        )}
+          {/* Countdown overlay */}
+          {countdown !== null && (
+            <div className="camera-countdown-overlay">
+              <div className="camera-countdown-number">{countdown}</div>
+            </div>
+          )}
 
-        {cameraReady && (
-          <div className="camera-controls">
-            <button className="camera-capture-btn" onClick={handleCapture} id="btn-capture" aria-label="Capture photo" />
+          {!cameraReady && (
+            <div className="camera-loading">
+              <div className="camera-loading-spinner" />
+              Accessing camera...
+            </div>
+          )}
+
+          {cameraReady && !isFull && (
+            <div className="camera-controls">
+              <button
+                className="camera-capture-btn"
+                onClick={handleCapture}
+                disabled={isCountingDown}
+                id="btn-capture"
+                aria-label="Capture photo with countdown"
+              />
+              <button
+                className="camera-quick-btn"
+                onClick={handleQuickCapture}
+                disabled={isCountingDown}
+                title="Quick capture (no countdown)"
+              >
+                ⚡
+              </button>
+            </div>
+          )}
+
+          {isFull && (
+            <div className="camera-full-overlay">
+              <p>All {maxPhotos} photos captured! ✨</p>
+            </div>
+          )}
+        </div>
+
+        {/* Photo strip preview */}
+        <div className="camera-strip">
+          <div className="camera-strip-header">
+            <h3>Your Photos</h3>
+            {photos.length > 0 && (
+              <span className="camera-strip-count">{photos.length}/{maxPhotos}</span>
+            )}
           </div>
-        )}
+          <div className="camera-strip-photos">
+            {Array.from({ length: maxPhotos }, (_, i) => (
+              <div key={i} className={`camera-strip-slot ${photos[i] ? 'filled' : ''}`}>
+                {photos[i] ? (
+                  <>
+                    <img src={photos[i]} alt={`Photo ${i + 1}`} />
+                    <button
+                      className="camera-strip-retake"
+                      onClick={() => handleRetake(i)}
+                      title="Retake"
+                    >
+                      ↺
+                    </button>
+                    <span className="camera-strip-number">{i + 1}</span>
+                  </>
+                ) : (
+                  <div className="camera-strip-empty">
+                    <span>{i + 1}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Peer photos in room mode */}
+          {mode === 'room' && peerPhotos.length > 0 && (
+            <div className="camera-peer-photos">
+              <h4 className="camera-peer-title">Foto Teman</h4>
+              <div className="camera-strip-photos">
+                {peerPhotos.map((p, i) => (
+                  <div key={i} className="camera-strip-slot filled peer">
+                    <img src={p.imageData} alt={`${p.name} photo`} />
+                    <span className="camera-strip-peer-name">{p.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {photos.length > 0 && (
+            <button
+              className="camera-done-btn"
+              onClick={handleDone}
+              id="btn-photos-done"
+            >
+              {isFull ? 'Lanjut Edit! ✨' : `Lanjut dengan ${photos.length} foto →`}
+            </button>
+          )}
+        </div>
       </div>
     </section>
   );
